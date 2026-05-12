@@ -1,0 +1,6 @@
+aiogram
+python-dotenv
+aiohttp
+psutil
+aiogram[socks]
+aiohttp-socks
