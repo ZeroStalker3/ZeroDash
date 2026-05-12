@@ -37,8 +37,16 @@ async def callbacks(callback: types.CallbackQuery):
         system.reboot_server()
     await callback.answer()
 
-@router.message(F.text == "/shutdown", F.from_user.id == ADMIN_ID)
-async def cmd_shutdown(message: types.Message):
-    await message.answer("⚠️ Получена команда на выключение. Сервер завершает работу...")
-    await asyncio.sleep(3)
-    os.system("sudo /usr/sbin/poweroff now")
+@router.message(Command("shell"), F.from_user.id == ADMIN_ID)
+async def shell_command(message: types.Message, command: Command):
+    if not command.args:
+        return await message.answer("⚠️ Введите команду. Пример: `/shell uptime`", parse_mode="Markdown")
+    
+    query = command.args
+    sent_message = await message.answer(f"⏳ Выполняю: `{query}`...")
+    
+    try:
+        # Выполнение команды в системе
+        result = subprocess.check_output(query, shell=True, stderr=subprocess.STDOUT, text=True)
+        # Ограничение Telegram на длину сообщения (4096 символов)
+        formatted_result = f"
