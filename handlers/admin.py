@@ -1,4 +1,5 @@
 import os
+import subprocess
 import asyncio
 from aiogram import Router, types, F
 from aiogram.filters import Command
@@ -37,16 +38,47 @@ async def callbacks(callback: types.CallbackQuery):
         system.reboot_server()
     await callback.answer()
 
-@router.message(Command("shell"), F.from_user.id == ADMIN_ID)
-async def shell_command(message: types.Message, command: Command):
-    if not command.args:
-        return await message.answer("⚠️ Введите команду. Пример: `/shell uptime`", parse_mode="Markdown")
-    
-    query = command.args
-    sent_message = await message.answer(f"⏳ Выполняю: `{query}`...")
-    
+@router.message(Command("ping"), F.from_user.id == ADMIN_ID)
+async def cmd_ping(message: types.Message):
+    await message.answer("✅ Бот видит админа и готов к командам!")
+
+
+@router.message(Command("shell"))
+async def cmd_shell(message: types.Message):
+    # 1. Проверка прав доступа
+    if str(message.from_user.id) != str(ADMIN_ID):
+        await message.reply("⛔ У вас нет прав для выполнения этой команды.")
+        return
+
+    # 2. Извлекаем команду после /shell
+    command = message.text.replace("/shell", "").strip()
+
+    if not command:
+        await message.reply("📝 Введите команду после /shell (например: `/shell uptime`)", parse_mode="Markdown")
+        return
+
+    # Отправляем сообщение о начале выполнения
+    status_msg = await message.answer(f"⏳ Выполняю: `{command}`...", parse_mode="Markdown")
     try:
-        # Выполнение команды в системе
-        result = subprocess.check_output(query, shell=True, stderr=subprocess.STDOUT, text=True)
-        # Ограничение Telegram на длину сообщения (4096 символов)
-        formatted_result = f"
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+
+        output = result.stdout if result.stdout else result.stderr
+
+        if not output or not output.strip():
+            await status_msg.edit_text("✅ Команда выполнена, вывод пуст.")
+        else:
+            final_output = f"Результат:\n<code>{output}</code>"
+            await status_msg.edit_text(final_output, parse_mode="Markdown")
+
+    except subprocess.TimeoutExpired:
+        await status_msg.edit_text("⏳ Ошибка: Время ожидания (15 сек) истекло.")
+        
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Ошибка выполнения: `{str(e)}`", parse_mode="Markdown")
+
